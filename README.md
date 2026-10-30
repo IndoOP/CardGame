@@ -1,6 +1,6 @@
 # 🃏 Card Room
 
-Real-time multiplayer card games (Bluff, Speed, Crazy Eights) built with Socket.IO.
+Real-time multiplayer card games (Bluff, Speed, Crazy Eights, UNO) built with Socket.IO.
 
 - `server/` – Node + Express + Socket.IO. Server-authoritative: hands are private, moves are validated, players can reconnect.
 - `client/` – static site (no build step). Deploy on Vercel.
