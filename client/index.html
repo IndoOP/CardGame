@@ -3,15 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Card Room – multiplayer card games</title>
-<meta name="theme-color" content="#0f3d2e">
+<title>Card Room · multiplayer card games</title>
+<meta name="theme-color" content="#0b1220">
+<meta name="description" content="Play Bluff, Speed, Crazy Eights and UNO with friends in real time.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="conn" class="conn off">Connecting…</div>
-<div id="app"></div>
-<div id="toast"></div>
+<div id="conn" class="conn"></div>
+<header id="hdr"></header>
+<div id="layout">
+  <main id="app"></main>
+  <aside id="side" aria-label="Players and chat">
+    <div class="side-h"><b>Room</b><button class="ico" id="sclose" aria-label="Close">✕</button></div>
+    <ul id="plist"></ul>
+    <div id="hostctl"></div>
+    <div class="chat">
+      <div id="clog" aria-live="polite"></div>
+      <form id="cform"><input id="cin" maxlength="200" placeholder="Say something…" autocomplete="off"><button class="btn sm">Send</button></form>
+    </div>
+  </aside>
+</div>
+<button id="fab" aria-label="Open chat">💬<i id="badge" hidden></i></button>
+<div id="toast" role="status"></div>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
