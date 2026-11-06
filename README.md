@@ -1,15 +1,31 @@
 # 🃏 Card Room
 
-Real-time multiplayer card games (Bluff, Speed, Crazy Eights, UNO) built with Socket.IO.
+Real-time multiplayer card games (War, Blackjack Duel, Speed, Bluff, Crazy Eights, UNO) built with Socket.IO.
 
 - `server/` – Node + Express + Socket.IO. Server-authoritative: hands stay private, every move is validated, players can reconnect.
 - `client/` – static site, no build step. Deploy on Vercel.
 
+## Games
+- **⚔️ War (2 players):** Classic card battle duel! Flip your cards simultaneously; high card wins the trick. Tied ranks declare **WAR!** with face-down spoils cards and a deciding showdown!
+- **🃏 Blackjack Duel (2 players):** Head-to-head 21 showdown. Hit or stand to outplay your opponent in a best-of-5 rounds casino duel.
+- **⚡ Speed (2 players):** Real-time card slinging. Play cards one rank above or below center piles with lightning reflexes.
+- **🎭 Bluff (2–6 players):** Shed your hand. Lie about what you play, call out bluffs, or pass if you dare.
+- **🎱 Crazy Eights (2–6 players):** Match suit or rank. Eights are wild. Clear your hand first to win.
+- **🌈 UNO (2–6 players):** Classic rules, multi-card plays, Wild challenges, and 500-point match scoring.
+
+## UI Dynamics & Game Feel
+- **Visuals:** Casino green velvet felt table with rim lighting, depth shadows, natural card hand fanning, and 3D hover elevations.
+- **Card Motion & Dynamics:** Physical card throw animations flying smoothly from hand to table, table impact bounce, and dynamic legal play glows.
+- **Sound Effects Engine:** High-performance synthesized Web Audio effects (card snaps, draws, poker chip clicks, turn chimes, victory fanfare, timer ticks) with an in-header mute toggle.
+- **Celebration:** Physics-based confetti burst on victory.
+- **Real-Time Reactions:** Quick emoji reaction bar (👏, 🔥, 😮, 😂, 🃏, 💀, 💥, ⚔️) that float across the table in real-time.
+- **Haptic Feedback:** Vibration alerts for turn changes and high-stakes plays on supported devices.
+
 ## Features
 - **Invite links:** `https://your-site/?room=ABCD`, with a Copy/Share button (native share sheet on phones).
-- **Turn timer:** the host picks 20–90 s. After a timeout the server plays for you. After two timeouts in a row you're marked *away* and autoplayed quickly until you act again. Disconnected players get a 12 s grace period, then autoplay. In Speed, a player offline for 30 s forfeits.
-- **Host powers:** kick (and ban) players, hand over host, lock the room, change the timer, end the game.
-- **Chat** in every room (messages are stripped of markup and rate limited).
+- **Turn timer:** The host picks 20–90 s. After a timeout the server plays for you. Disconnected players get a grace period, then autoplay.
+- **Host powers:** Kick/ban players, hand over host, lock the room, change the timer, end game.
+- **Chat & Reactions:** Rate-limited room chat and floating emoji reactions.
 - **Spam protection:** per-socket token-bucket rate limits, payload size cap, per-IP connection cap, validated inputs, and handler try/catch so a bad packet can't crash the process. The client also blocks double-taps.
 - **UNO (classic rules):** 108-card deck, flip edge cases, multi-card plays of the same number/symbol in one turn (the last card sets the colour), Wild +4 challenge, UNO call + catch window, round scoring and a 500-point match. No +2/+4 stacking (classic).
 
