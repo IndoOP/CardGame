@@ -62,9 +62,14 @@ setInterval(() => {
   for (const r of rooms.values()) {
     try {
       if (r.phase !== 'play' || !r.players.some(p => p.connected)) continue;
-      if (r.game === 'speed') { // real-time game: forfeit if the opponent stays disconnected
+      if (r.game === 'speed' || r.game === 'war' || r.game === 'blackjack') { // 2-player games: forfeit if opponent stays disconnected
         const off = r.players.find(p => !p.connected && p.offSince && now - p.offSince > 30000);
-        if (off) { r.g.win = r.players.find(p => p !== off).id; r.phase = 'over'; r.msg = `${off.name} disconnected: forfeit`; arm(r); push(r); continue; }
+        if (off) {
+          const other = r.players.find(p => p !== off);
+          if (other) {
+            r.g.win = other.id; r.phase = 'over'; r.msg = `${off.name} disconnected: forfeit`; arm(r); push(r); continue;
+          }
+        }
       }
       if (r.deadline && now >= r.deadline) timeout(r);
     } catch (e) { console.error('tick', e); }
@@ -196,6 +201,12 @@ io.on('connection', socket => {
     const m = { n: p.name, i: p.id, x, t: Date.now() };
     r.chat.push(m); if (r.chat.length > 60) r.chat.shift();
     sayAll(r, 'chat', m);
+  });
+
+  on('reaction', 12, 4, d => {
+    const [r, p] = ctx(); if (!r || !p) return;
+    const emoji = clean(d.emoji, 12);
+    if (emoji) sayAll(r, 'reaction', { id: p.id, name: p.name, emoji });
   });
 
   on('leave', 6, 1, () => leave(socket));

@@ -299,4 +299,294 @@ const uno = {
   }
 };
 
-module.exports = { bluff, speed, crazy8, uno };
+/* ---------------- War (2 players, Card Duel) ---------------- */
+const warRk = c => (rk(c) === 0 ? 13 : rk(c)); // Ace is highest (13), 2 is 1, King is 12
+
+function recycleWar(g, pid) {
+  if (!g.draw[pid].length && g.won[pid].length) {
+    g.draw[pid] = shuf(g.won[pid].slice());
+    g.won[pid] = [];
+  }
+}
+
+const war = {
+  min: 2, max: 2,
+  init(r) {
+    const [p1, p2] = ids(r), d = shuf(deck());
+    return {
+      draw: { [p1]: d.splice(0, 26), [p2]: d },
+      won: { [p1]: [], [p2]: [] },
+      bounty: [],
+      played: {},
+      history: null,
+      isWar: false,
+      round: 1,
+      win: null
+    };
+  },
+  waiting(r) {
+    const g = r.g;
+    if (g.win) return null;
+    const [p1, p2] = ids(r);
+    if (g.played[p1] === undefined && g.played[p2] === undefined) return p1;
+    if (g.played[p1] === undefined) return p1;
+    if (g.played[p2] === undefined) return p2;
+    return null;
+  },
+  auto(r, id) {
+    return { type: 'flip' };
+  },
+  act(r, id, a) {
+    const g = r.g;
+    if (g.win || a.type !== 'flip') return null;
+    const [p1, p2] = ids(r);
+    if (id !== p1 && id !== p2) return null;
+    if (g.played[id] !== undefined) return null;
+
+    recycleWar(g, id);
+    if (!g.draw[id].length) {
+      g.win = id === p1 ? p2 : p1;
+      return `${nm(r, id)} has no cards left! ${nm(r, g.win)} wins the War!`;
+    }
+
+    const card = g.draw[id].pop();
+    g.played[id] = card;
+    g.bounty.push(card);
+
+    if (g.played[p1] === undefined || g.played[p2] === undefined) {
+      return `${nm(r, id)} flipped a battle card!`;
+    }
+
+    // Both have flipped: Showdown!
+    const c1 = g.played[p1], c2 = g.played[p2];
+    const v1 = warRk(c1), v2 = warRk(c2);
+    g.round++;
+
+    if (v1 > v2) {
+      const count = g.bounty.length;
+      g.won[p1].push(...g.bounty);
+      g.history = { p1, p2, c1, c2, winner: p1, count, isWar: g.isWar };
+      g.bounty = [];
+      g.played = {};
+      g.isWar = false;
+      recycleWar(g, p2);
+      if (!g.draw[p2].length) g.win = p1;
+      return `${nm(r, p1)}'s ${lbl(c1)} beats ${nm(r, p2)}'s ${lbl(c2)}! (+${count} cards)`;
+    } else if (v2 > v1) {
+      const count = g.bounty.length;
+      g.won[p2].push(...g.bounty);
+      g.history = { p1, p2, c1, c2, winner: p2, count, isWar: g.isWar };
+      g.bounty = [];
+      g.played = {};
+      g.isWar = false;
+      recycleWar(g, p1);
+      if (!g.draw[p1].length) g.win = p2;
+      return `${nm(r, p2)}'s ${lbl(c2)} beats ${nm(r, p1)}'s ${lbl(c1)}! (+${count} cards)`;
+    } else {
+      g.isWar = true;
+      g.history = { p1, p2, c1, c2, winner: null, isWar: true, count: g.bounty.length };
+      [p1, p2].forEach(p => {
+        recycleWar(g, p);
+        for (let k = 0; k < 3; k++) {
+          recycleWar(g, p);
+          if (g.draw[p].length > 1) {
+            g.bounty.push(g.draw[p].pop());
+          }
+        }
+      });
+      g.played = {};
+      return `⚔️ WAR! Tie on ${RK[rk(c1)]}! 3 cards face down, flip the deciding card!`;
+    }
+  },
+  view(r, id) {
+    const g = r.g, [p1, p2] = ids(r);
+    const counts = {};
+    [p1, p2].forEach(p => {
+      counts[p] = { draw: g.draw[p].length, won: g.won[p].length, total: g.draw[p].length + g.won[p].length };
+    });
+    return {
+      counts,
+      played: g.played,
+      bountyN: g.bounty.length,
+      history: g.history,
+      isWar: g.isWar,
+      round: g.round,
+      ready: { [p1]: g.played[p1] !== undefined, [p2]: g.played[p2] !== undefined },
+      win: g.win
+    };
+  }
+};
+
+/* ---------------- Blackjack Duel (21 Showdown) ---------------- */
+const bjVal = cs => {
+  let sum = 0, aces = 0;
+  for (const c of cs) {
+    const r = rk(c);
+    if (r === 0) { aces++; sum += 11; }
+    else if (r >= 9) { sum += 10; }
+    else { sum += (r + 1); }
+  }
+  while (sum > 21 && aces > 0) { sum -= 10; aces--; }
+  return sum;
+};
+const isNat = cs => cs.length === 2 && bjVal(cs) === 21;
+
+function bjDeal(r, g) {
+  const [p1, p2] = ids(r);
+  if (g.deck.length < 15) g.deck = shuf(deck());
+  g.hands = {
+    [p1]: [g.deck.pop(), g.deck.pop()],
+    [p2]: [g.deck.pop(), g.deck.pop()]
+  };
+  g.stood = { [p1]: false, [p2]: false };
+  g.turn = p1;
+  g.between = false;
+  g.roundResult = null;
+  g.roundMsg = '';
+}
+
+function bjSettle(r, g) {
+  const [p1, p2] = ids(r);
+  const v1 = bjVal(g.hands[p1]), v2 = bjVal(g.hands[p2]);
+  const b1 = v1 > 21, b2 = v2 > 21;
+  const n1 = isNat(g.hands[p1]), n2 = isNat(g.hands[p2]);
+  let winner = null, msg = '';
+
+  if (b1 && b2) {
+    winner = 'tie';
+    msg = `Both busted! (${v1} vs ${v2}) · Push!`;
+  } else if (b1) {
+    winner = p2;
+    msg = `${nm(r, p1)} busted (${v1})! ${nm(r, p2)} wins round!`;
+  } else if (b2) {
+    winner = p1;
+    msg = `${nm(r, p2)} busted (${v2})! ${nm(r, p1)} wins round!`;
+  } else if (n1 && !n2) {
+    winner = p1;
+    msg = `🔥 NATURAL BLACKJACK! ${nm(r, p1)} wins round!`;
+  } else if (n2 && !n1) {
+    winner = p2;
+    msg = `🔥 NATURAL BLACKJACK! ${nm(r, p2)} wins round!`;
+  } else if (v1 > v2) {
+    winner = p1;
+    msg = `${nm(r, p1)} wins with ${v1} against ${v2}!`;
+  } else if (v2 > v1) {
+    winner = p2;
+    msg = `${nm(r, p2)} wins with ${v2} against ${v1}!`;
+  } else {
+    winner = 'tie';
+    msg = `Push! Tie at ${v1}!`;
+  }
+
+  if (winner === p1) g.scores[p1]++;
+  else if (winner === p2) g.scores[p2]++;
+
+  g.roundResult = { winner, v1, v2, n1, n2, msg };
+  g.roundMsg = msg;
+
+  if (g.scores[p1] >= g.target) {
+    g.win = p1;
+    return `${msg} ${nm(r, p1)} wins the Blackjack Duel match!`;
+  } else if (g.scores[p2] >= g.target) {
+    g.win = p2;
+    return `${msg} ${nm(r, p2)} wins the Blackjack Duel match!`;
+  } else {
+    g.between = true;
+    return msg;
+  }
+}
+
+const blackjack = {
+  min: 2, max: 2,
+  init(r) {
+    const [p1, p2] = ids(r);
+    const g = {
+      scores: { [p1]: 0, [p2]: 0 },
+      target: 3,
+      round: 1,
+      deck: shuf(deck())
+    };
+    bjDeal(r, g);
+    return g;
+  },
+  between: r => !!r.g.between && !r.g.win,
+  nextRound(r) {
+    const g = r.g;
+    g.round++;
+    bjDeal(r, g);
+    r.msg = `Round ${g.round} · Showdown!`;
+  },
+  waiting: r => {
+    const g = r.g;
+    return g.win || g.between ? null : g.turn;
+  },
+  auto(r, id) {
+    const g = r.g, hand = g.hands[id] || [];
+    return bjVal(hand) >= 17 ? { type: 'stand' } : { type: 'hit' };
+  },
+  act(r, id, a) {
+    const g = r.g;
+    if (g.win || g.between || g.turn !== id) return null;
+    const [p1, p2] = ids(r), hand = g.hands[id], n = nm(r, id);
+
+    if (a.type === 'hit') {
+      if (g.deck.length === 0) g.deck = shuf(deck());
+      const card = g.deck.pop();
+      hand.push(card);
+      const val = bjVal(hand);
+      if (val > 21) {
+        g.stood[id] = true;
+        if (id === p1) {
+          g.turn = p2;
+          return `${n} hits ${lbl(card)} and busts (${val})! ${nm(r, p2)}'s turn`;
+        } else {
+          return bjSettle(r, g);
+        }
+      } else if (val === 21) {
+        g.stood[id] = true;
+        if (id === p1) {
+          g.turn = p2;
+          return `${n} hits 21! ${nm(r, p2)}'s turn`;
+        } else {
+          return bjSettle(r, g);
+        }
+      }
+      return `${n} hit (${lbl(card)})`;
+    }
+
+    if (a.type === 'stand') {
+      g.stood[id] = true;
+      if (id === p1) {
+        g.turn = p2;
+        return `${n} stands with ${bjVal(hand)}. ${nm(r, p2)}'s turn`;
+      } else {
+        return bjSettle(r, g);
+      }
+    }
+
+    return null;
+  },
+  view(r, id) {
+    const g = r.g, [p1, p2] = ids(r);
+    const opp = id === p1 ? p2 : p1;
+    const showAll = g.between || !!g.win || g.stood[opp];
+    return {
+      hand: g.hands[id] || [],
+      oppHand: showAll ? (g.hands[opp] || []) : [(g.hands[opp] || [])[0]],
+      oppTotalCount: (g.hands[opp] || []).length,
+      scores: g.scores,
+      target: g.target,
+      round: g.round,
+      turn: g.turn,
+      val: bjVal(g.hands[id] || []),
+      oppVal: showAll ? bjVal(g.hands[opp] || []) : null,
+      stood: g.stood,
+      between: g.between,
+      roundResult: g.roundResult,
+      roundMsg: g.roundMsg,
+      win: g.win
+    };
+  }
+};
+
+module.exports = { bluff, speed, crazy8, uno, war, blackjack };
